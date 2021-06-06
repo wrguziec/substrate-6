@@ -5,7 +5,7 @@ use std::cell::RefCell;
 use sp_core::H256;
 use frame_support::{parameter_types, assert_ok, assert_noop};
 use sp_runtime::{
-	traits::{BlakeTwo256, IdentityLookup}, testing::Header,
+    traits::{BlakeTwo256, IdentityLookup}, testing::Header,
 };
 
 type UncheckedExtrinsic = frame_system::mocking::MockUncheckedExtrinsic<Test>;
@@ -31,48 +31,48 @@ parameter_types! {
 }
 
 impl frame_system::Config for Test {
-	type BaseCallFilter = ();
-	type BlockWeights = ();
-	type BlockLength = ();
-	type DbWeight = ();
-	type Origin = Origin;
-	type Call = Call;
-	type Index = u64;
-	type BlockNumber = u64;
-	type Hash = H256;
-	type Hashing = BlakeTwo256;
-	type AccountId = u64;
-	type Lookup = IdentityLookup<Self::AccountId>;
-	type Header = Header;
-	type Event = Event;
-	type BlockHashCount = BlockHashCount;
-	type Version = ();
-	type PalletInfo = PalletInfo;
-	type AccountData = pallet_balances::AccountData<u64>;
-	type OnNewAccount = ();
-	type OnKilledAccount = ();
-	type SystemWeightInfo = ();
-	type SS58Prefix = SS58Prefix;
+    type BaseCallFilter = ();
+    type BlockWeights = ();
+    type BlockLength = ();
+    type DbWeight = ();
+    type Origin = Origin;
+    type Call = Call;
+    type Index = u64;
+    type BlockNumber = u64;
+    type Hash = H256;
+    type Hashing = BlakeTwo256;
+    type AccountId = u64;
+    type Lookup = IdentityLookup<Self::AccountId>;
+    type Header = Header;
+    type Event = Event;
+    type BlockHashCount = BlockHashCount;
+    type Version = ();
+    type PalletInfo = PalletInfo;
+    type AccountData = pallet_balances::AccountData<u64>;
+    type OnNewAccount = ();
+    type OnKilledAccount = ();
+    type SystemWeightInfo = ();
+    type SS58Prefix = SS58Prefix;
 }
 
 parameter_types! {
 	pub const ExistentialDeposit: u64 = 1;
 }
 impl pallet_balances::Config for Test {
-	type MaxLocks = ();
-	type Balance = u64;
-	type Event = Event;
-	type DustRemoval = ();
-	type ExistentialDeposit = ExistentialDeposit;
-	type AccountStore = System;
-	type WeightInfo = ();
+    type MaxLocks = ();
+    type Balance = u64;
+    type Event = Event;
+    type DustRemoval = ();
+    type ExistentialDeposit = ExistentialDeposit;
+    type AccountStore = System;
+    type WeightInfo = ();
 }
 
 impl orml_nft::Config for Test {
     type ClassId = u32;
-	type TokenId = u32;
-	type ClassData = ();
-	type TokenData = Kitty;
+    type TokenId = u32;
+    type ClassData = ();
+    type TokenData = Kitty;
 }
 
 thread_local! {
@@ -102,15 +102,15 @@ impl Config for Test {
 pub fn new_test_ext() -> sp_io::TestExternalities {
     let mut t = frame_system::GenesisConfig::default().build_storage::<Test>().unwrap();
 
-    pallet_balances::GenesisConfig::<Test>{
-		balances: vec![(200, 500)],
+    pallet_balances::GenesisConfig::<Test> {
+        balances: vec![(200, 500)],
     }.assimilate_storage(&mut t).unwrap();
 
     crate::GenesisConfig::default().assimilate_storage::<Test>(&mut t).unwrap();
 
     let mut t: sp_io::TestExternalities = t.into();
 
-    t.execute_with(|| System::set_block_number(1) );
+    t.execute_with(|| System::set_block_number(1));
     t
 }
 
@@ -197,11 +197,246 @@ fn handle_self_transfer() {
 }
 
 #[test]
-fn can_set_price() {
-    // TODO: write tests for `fn set_price`
+fn can_set_price_happy_path() {
+    new_test_ext().execute_with(|| {
+        //given
+        let account_id = 100;
+        let kitty_index = 0;
+        let price = Some(5);
+        KittiesModule::create(Origin::signed(account_id));
+
+        //when
+        let set_price_result = KittiesModule::set_price(Origin::signed(account_id), kitty_index, price);
+
+        //then
+        assert_ok!(set_price_result);
+        assert_eq!(last_event(), Event::kitties(RawEvent::KittyPriceUpdated(account_id, kitty_index, price)));
+        assert_eq!(KittiesModule::kitty_prices(0), price);
+    });
 }
 
 #[test]
-fn can_buy() {
-    // TODO: write tests for `fn buy`
+fn can_set_price_set_from_none_to_none() {
+    new_test_ext().execute_with(|| {
+        //given
+        let account_id = 100;
+        let kitty_index = 0;
+        let price: Option<u64> = None;
+        KittiesModule::create(Origin::signed(account_id));
+
+        //when
+        let set_price_result = KittiesModule::set_price(Origin::signed(account_id), kitty_index, price);
+
+        //then
+        assert_ok!(set_price_result);
+        assert_eq!(last_event(), Event::kitties(RawEvent::KittyPriceUpdated(account_id, kitty_index, price)));
+        assert_eq!(KittiesModule::kitty_prices(0), price);
+    });
+}
+
+#[test]
+fn can_set_price_set_from_some_to_none() {
+    new_test_ext().execute_with(|| {
+        //given
+        let account_id = 100;
+        let kitty_index = 0;
+        let old_price = Some(100);
+        let new_price: Option<u64> = None;
+        KittiesModule::create(Origin::signed(account_id));
+        KittiesModule::set_price(Origin::signed(account_id), kitty_index, old_price);
+
+        //when
+        let set_price_result = KittiesModule::set_price(Origin::signed(account_id), kitty_index, new_price);
+
+        //then
+        assert_ok!(set_price_result);
+        assert_eq!(last_event(), Event::kitties(RawEvent::KittyPriceUpdated(account_id, kitty_index, new_price)));
+        assert_eq!(KittiesModule::kitty_prices(0), new_price);
+    });
+}
+
+#[test]
+fn can_set_price_owner_does_not_have_kitty() {
+    new_test_ext().execute_with(|| {
+        //given
+        let owner_id = 100;
+        let not_owner_id = 200;
+        let kitty_index = 0;
+        let price = Some(5);
+        KittiesModule::create(Origin::signed(owner_id));
+        System::reset_events();
+
+        //when
+        let set_price_result = KittiesModule::set_price(Origin::signed(not_owner_id), kitty_index, price);
+
+        //then
+        assert_noop!(set_price_result, Error::<Test>::NotOwner);
+        assert_eq!(System::events().last(), None);
+    });
+}
+
+
+#[test]
+fn can_set_price_kitty_does_not_exist() {
+    new_test_ext().execute_with(|| {
+        //given
+        let account_id = 100;
+        let kitty_index = 0;
+        let price = Some(5);
+
+        //when
+        let set_price_result = KittiesModule::set_price(Origin::signed(account_id), kitty_index, price);
+
+        //then
+        assert_noop!(set_price_result, Error::<Test>::NotOwner);
+        assert_eq!(System::events().last(), None);
+    });
+}
+
+
+#[test]
+fn can_buy_happy_path() {
+    new_test_ext().execute_with(|| {
+        //given
+        let buy_account_id = 100;
+        let owner_account_id = 200;
+        let kitty_index = 0;
+        let price = 5;
+        assert_ok!(KittiesModule::create(Origin::signed(owner_account_id)));
+        assert_ok!(KittiesModule::set_price(Origin::signed(owner_account_id), kitty_index, Some(price)));
+        Balances::make_free_balance_be(&buy_account_id, 100);
+        Balances::make_free_balance_be(&owner_account_id, 0);
+
+        //when
+        let buy_result = KittiesModule::buy(Origin::signed(buy_account_id), owner_account_id, kitty_index, price);
+
+        //then
+        assert_ok!(buy_result);
+        assert_eq!(last_event(), Event::kitties(RawEvent::KittySold(owner_account_id, buy_account_id, kitty_index, price)));
+        assert_eq!(Balances::total_balance(&owner_account_id), 5);
+        assert_eq!(Balances::total_balance(&buy_account_id), 95);
+        assert_eq!(NFT::is_owner(&buy_account_id, (KittiesModule::class_id(), 0)), true);
+        assert_eq!(NFT::is_owner(&owner_account_id, (KittiesModule::class_id(), 0)), false);
+    });
+}
+
+#[test]
+fn can_buy_buy_from_self() {
+    new_test_ext().execute_with(|| {
+        //given
+        let owner_account_id = 200;
+        let kitty_index = 0;
+        let price = 5;
+
+        //when
+        let buy_result = KittiesModule::buy(Origin::signed(owner_account_id), owner_account_id, kitty_index, price);
+
+        //then
+        assert_noop!(buy_result, Error::<Test>::BuyFromSelf);
+    });
+}
+
+#[test]
+fn can_buy_not_for_sale() {
+    new_test_ext().execute_with(|| {
+        //given
+        let buy_account_id = 100;
+        let owner_account_id = 200;
+        let kitty_index = 0;
+        let price = 5;
+
+        //when
+        let buy_result = KittiesModule::buy(Origin::signed(buy_account_id), owner_account_id, kitty_index, price);
+
+        //then
+        assert_noop!(buy_result, Error::<Test>::NotForSale);
+    });
+}
+
+#[test]
+fn can_buy_price_too_low() {
+    new_test_ext().execute_with(|| {
+        //given
+        let buy_account_id = 100;
+        let owner_account_id = 200;
+        let kitty_index = 0;
+        let price = 5;
+        assert_ok!(KittiesModule::create(Origin::signed(owner_account_id)));
+        assert_ok!(KittiesModule::set_price(Origin::signed(owner_account_id), kitty_index, Some(price)));
+
+        //when
+        let buy_result = KittiesModule::buy(Origin::signed(buy_account_id), owner_account_id, kitty_index, price - 1);
+
+        //then
+        assert_noop!(buy_result, Error::<Test>::PriceTooLow);
+    });
+}
+
+#[test]
+fn can_buy_price_higher() {
+    new_test_ext().execute_with(|| {
+        //given
+        let buy_account_id = 100;
+        let owner_account_id = 200;
+        let kitty_index = 0;
+        let price = 5;
+        assert_ok!(KittiesModule::create(Origin::signed(owner_account_id)));
+        assert_ok!(KittiesModule::set_price(Origin::signed(owner_account_id), kitty_index, Some(price)));
+        Balances::make_free_balance_be(&buy_account_id, 100);
+        Balances::make_free_balance_be(&owner_account_id, 0);
+
+        //when
+        let buy_result = KittiesModule::buy(Origin::signed(buy_account_id), owner_account_id, kitty_index, price + 1);
+
+        //then
+        assert_ok!(buy_result);
+        assert_eq!(last_event(), Event::kitties(RawEvent::KittySold(owner_account_id, buy_account_id, kitty_index, price)));
+        assert_eq!(Balances::total_balance(&owner_account_id), 5);
+        assert_eq!(Balances::total_balance(&buy_account_id), 95);
+        assert_eq!(NFT::is_owner(&buy_account_id, (KittiesModule::class_id(), 0)), true);
+        assert_eq!(NFT::is_owner(&owner_account_id, (KittiesModule::class_id(), 0)), false);
+    });
+}
+
+#[test]
+fn can_buy_insufficient_balance() {
+    new_test_ext().execute_with(|| {
+        //given
+        let buy_account_id = 100;
+        let owner_account_id = 200;
+        let kitty_index = 0;
+        let price = 5;
+        assert_ok!(KittiesModule::create(Origin::signed(owner_account_id)));
+        assert_ok!(KittiesModule::set_price(Origin::signed(owner_account_id), kitty_index, Some(price)));
+        Balances::make_free_balance_be(&buy_account_id, 4);
+        Balances::make_free_balance_be(&owner_account_id, 0);
+
+        //when
+        let buy_result = KittiesModule::buy(Origin::signed(buy_account_id), owner_account_id, kitty_index, price);
+
+        //then
+
+        assert_noop!(buy_result, pallet_balances::Error::<Test, _>::InsufficientBalance);
+    });
+}
+
+#[test]
+fn can_buy_keep_alive() {
+    new_test_ext().execute_with(|| {
+        //given
+        let buy_account_id = 100;
+        let owner_account_id = 200;
+        let kitty_index = 0;
+        let price = 5;
+        assert_ok!(KittiesModule::create(Origin::signed(owner_account_id)));
+        assert_ok!(KittiesModule::set_price(Origin::signed(owner_account_id), kitty_index, Some(price)));
+        Balances::make_free_balance_be(&buy_account_id, 5);
+        Balances::make_free_balance_be(&owner_account_id, 0);
+
+        //when
+        let buy_result = KittiesModule::buy(Origin::signed(buy_account_id), owner_account_id, kitty_index, price);
+
+        //then
+        assert_noop!(buy_result, pallet_balances::Error::<Test, _>::KeepAlive);
+    });
 }
