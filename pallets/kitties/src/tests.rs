@@ -164,13 +164,15 @@ fn can_breed() {
 
 #[test]
 fn can_transfer() {
-    // TODO: update this test to check the updated behaviour regards to KittyPrices
     new_test_ext().execute_with(|| {
         assert_ok!(KittiesModule::create(Origin::signed(100)));
+        assert_ok!(KittiesModule::set_price(Origin::signed(100), 0, Some(10)));
 
         assert_noop!(KittiesModule::transfer(Origin::signed(101), 200, 0), orml_nft::Error::<Test>::NoPermission);
 
         assert_ok!(KittiesModule::transfer(Origin::signed(100), 200, 0));
+
+        assert_eq!(KittiesModule::kitty_prices(0), None);
 
         assert_eq!(NFT::tokens(KittiesModule::class_id(), 0).unwrap().owner, 200);
 
